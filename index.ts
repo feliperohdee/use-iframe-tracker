@@ -197,6 +197,15 @@ class HtmlTracker {
                 cookieOptions: '${this.getCookieOptions()}'
             };
 
+            const safeExecute = (fn) => {
+                try {
+                    return fn();
+                } catch (error) {
+                    console.error('Session tracker error:', error);
+                    return null;
+                }
+            };
+
             class SessionTracker {
                 constructor() {
                     this.tokenReadyCallbacks = new Set();
@@ -206,73 +215,81 @@ class HtmlTracker {
                 }
 
                 createSecureIframe() {
-                    const iframe = document.createElement('iframe');
-                    
-                    iframe.sandbox = '${this.getIframeSandboxPolicy()}';
-                    iframe.allow = '';
-                    
-                    iframe.setAttribute('referrerpolicy', 'no-referrer');
-                    iframe.setAttribute('loading', 'lazy');
-                    iframe.setAttribute('importance', 'low');
-                    
-                    Object.assign(iframe.style, {
-                        width: '0',
-                        height: '0',
-                        border: 'none',
-                        position: 'absolute',
-                        left: '-9999px',
-                        pointerEvents: 'none',
-                        visibility: 'hidden'
+                    return safeExecute(() => {
+                        const iframe = document.createElement('iframe');
+                        
+                        iframe.sandbox = '${this.getIframeSandboxPolicy()}';
+                        iframe.allow = '';
+                        
+                        iframe.setAttribute('referrerpolicy', 'no-referrer');
+                        iframe.setAttribute('loading', 'lazy');
+                        iframe.setAttribute('importance', 'low');
+                        
+                        Object.assign(iframe.style, {
+                            width: '0',
+                            height: '0',
+                            border: 'none',
+                            position: 'absolute',
+                            left: '-9999px',
+                            pointerEvents: 'none',
+                            visibility: 'hidden'
+                        });
+
+                        iframe.src = '${this.baseUrl}/iframe';
+                        document.body.appendChild(iframe);
+
+                        return iframe;
                     });
-
-                    iframe.src = '${this.baseUrl}/iframe';
-                    document.body.appendChild(iframe);
-
-                    return iframe;
                 }
 
                 setupSecureMessageListener() {
-                    window.addEventListener('message', (event) => {
-                        if (event.origin !== '${this.baseUrl}') {
-                            console.warn('Rejected message from unauthorized origin:', event.origin);
-                            return;
-                        }
+                    safeExecute(() => {
+                        window.addEventListener('message', (event) => {
+                            if (event.origin !== '${this.baseUrl}') {
+                                console.warn('Rejected message from unauthorized origin:', event.origin);
+                                return;
+                            }
 
-                        if (!this.iframe.contentWindow || event.source !== this.iframe.contentWindow) {
-                            console.warn('Rejected message from unauthorized source');
-                            return;
-                        }
+                            if (!this.iframe.contentWindow || event.source !== this.iframe.contentWindow) {
+                                console.warn('Rejected message from unauthorized source');
+                                return;
+                            }
 
-                        if (
-                            !event.data?.type === 'TOKEN_READY' ||
-                            !event.data?.source === 'session-tracker' ||
-                            !event.data?.token
-                        ) {
-                            return;
-                        }
+                            if (
+                                !event.data?.type === 'TOKEN_READY' ||
+                                !event.data?.source === 'session-tracker' ||
+                                !event.data?.token
+                            ) {
+                                return;
+                            }
 
-                        this.handleTokenReady(event.data);
+                            this.handleTokenReady(event.data);
+                        });
                     });
                 }
 
                 handleTokenReady(data) {
-                    window.VISITOR_TOKEN = data.token;
+                    safeExecute(() => {
+                        window.VISITOR_TOKEN = data.token;
 
-                    if (CONFIG.syncWithParent) {
-						localStorage.setItem(CONFIG.storageKey, data.token);
-                        this.setCookie(CONFIG.cookieName, data.token);
-                    }
+                        if (CONFIG.syncWithParent) {
+                            localStorage.setItem(CONFIG.storageKey, data.token);
+                            this.setCookie(CONFIG.cookieName, data.token);
+                        }
 
-                    window.dispatchEvent(new CustomEvent('visitor:token-ready', {
-                        detail: data
-                    }));
+                        window.dispatchEvent(new CustomEvent('visitor:token-ready', {
+                            detail: data
+                        }));
 
-                    this.tokenReadyCallbacks.forEach(callback => callback(data.token));
-                    this.tokenReadyCallbacks.clear();
+                        this.tokenReadyCallbacks.forEach(callback => callback(data.token));
+                        this.tokenReadyCallbacks.clear();
+                    });
                 }
 
                 setCookie(name, value) {
-                    document.cookie = name + '=' + value + '; ' + CONFIG.cookieOptions;
+                    safeExecute(() => {
+                        document.cookie = name + '=' + value + '; ' + CONFIG.cookieOptions;
+                    });
                 }
 
                 getToken() {
@@ -284,11 +301,13 @@ class HtmlTracker {
 
                         this.tokenReadyCallbacks.add(resolve);
                         
-                        if (this.iframe.contentWindow) {
-                            this.iframe.contentWindow.postMessage({
-                                type: 'GET_TOKEN'
-                            }, '*');
-                        }
+                        safeExecute(() => {
+                            if (this.iframe.contentWindow) {
+                                this.iframe.contentWindow.postMessage({
+                                    type: 'GET_TOKEN'
+                                }, '*');
+                            }
+                        });
                     });
                 }
             }
