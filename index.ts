@@ -153,12 +153,6 @@ class HtmlTracker {
                                 case 'GET_TOKEN':
                                     notifyParent(getToken());
                                     break;
-                                case 'SET_TOKEN':
-                                    if (CONFIG.syncWithParent && event.data.token) {
-                                        setToken(event.data.token);
-                                        notifyParent(event.data.token);
-                                    }
-                                    break;
                             }
                         };
 
@@ -204,9 +198,6 @@ class HtmlTracker {
             };
 
             class SessionTracker {
-                private iframe: HTMLIFrameElement;
-                private tokenReadyCallbacks: Set<(token: string) => void>;
-
                 constructor() {
                     this.tokenReadyCallbacks = new Set();
                     this.iframe = this.createSecureIframe();
@@ -214,7 +205,7 @@ class HtmlTracker {
                     window._sessionTrackerInitialized = true;
                 }
 
-                private createSecureIframe(): HTMLIFrameElement {
+                createSecureIframe() {
                     const iframe = document.createElement('iframe');
                     
                     iframe.sandbox = '${this.getIframeSandboxPolicy()}';
@@ -240,7 +231,7 @@ class HtmlTracker {
                     return iframe;
                 }
 
-                private setupSecureMessageListener() {
+                setupSecureMessageListener() {
                     window.addEventListener('message', (event) => {
                         if (event.origin !== '${this.baseUrl}') {
                             console.warn('Rejected message from unauthorized origin:', event.origin);
@@ -264,10 +255,11 @@ class HtmlTracker {
                     });
                 }
 
-                private handleTokenReady(data: TokenResponse) {
+                handleTokenReady(data) {
                     window.VISITOR_TOKEN = data.token;
 
                     if (CONFIG.syncWithParent) {
+						localStorage.setItem(CONFIG.storageKey, data.token);
                         this.setCookie(CONFIG.cookieName, data.token);
                     }
 
@@ -279,11 +271,11 @@ class HtmlTracker {
                     this.tokenReadyCallbacks.clear();
                 }
 
-                private setCookie(name: string, value: string) {
+                setCookie(name, value) {
                     document.cookie = name + '=' + value + '; ' + CONFIG.cookieOptions;
                 }
 
-                public getToken(): Promise<string> {
+                getToken() {
                     return new Promise((resolve) => {
                         if (window.VISITOR_TOKEN) {
                             resolve(window.VISITOR_TOKEN);
@@ -299,20 +291,10 @@ class HtmlTracker {
                         }
                     });
                 }
-
-                public setToken(token: string): void {
-                    if (this.iframe.contentWindow) {
-                        this.iframe.contentWindow.postMessage({
-                            type: 'SET_TOKEN',
-                            token
-                        }, '*');
-                    }
-                }
             }
 
             const tracker = new SessionTracker();
             window.getVisitorToken = () => tracker.getToken();
-            window.setVisitorToken = (token: string) => tracker.setToken(token);
         })();`;
 
 		return removeCommentsAndMinify(code);

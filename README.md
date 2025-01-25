@@ -134,18 +134,187 @@ const tracker = new HtmlTracker({
 });
 ```
 
-### Parent Frame Synchronization
+## 🍪 Cookie Configuration
+
+### Basic Cookie Setup
 
 ```typescript
 const tracker = new HtmlTracker({
 	baseUrl: 'https://your-domain.com',
-	syncWithParent: true
+	cookieName: 'visitor_id', // Custom cookie name (default: 'visitor_token')
+	domain: '.your-domain.com', // Cookie domain (optional)
+	secure: true, // Use secure cookie (default: true)
+	sameSite: 'None' // SameSite policy (default: 'None')
+});
+```
+
+### Cookie Policies
+
+The tracker handles different cookie configurations:
+
+```typescript
+// Strict same-site policy (most secure)
+const strictTracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	sameSite: 'Strict',
+	secure: true
+});
+// Results in: 'visitor_token=abc123; path=/; secure; samesite=Strict'
+
+// Lax same-site policy (balanced)
+const laxTracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	sameSite: 'Lax'
+});
+// Results in: 'visitor_token=abc123; path=/; secure; samesite=Lax'
+
+// Cross-domain tracking (least restrictive)
+const crossDomainTracker = new HtmlTracker({
+	baseUrl: 'https://tracking.your-domain.com',
+	domain: '.your-domain.com',
+	sameSite: 'None' // Will force secure=true
+});
+// Results in: 'visitor_token=abc123; path=/; domain=.your-domain.com; secure; samesite=None'
+```
+
+### Auto-Security Features
+
+The tracker includes automatic cookie security features:
+
+```typescript
+// SameSite=None automatically forces secure flag
+const tracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	sameSite: 'None',
+	secure: false // Will be forced to true
+});
+// Console: "SameSite=None requires secure=true. Forcing secure=true."
+// Results in: 'visitor_token=abc123; path=/; secure; samesite=None'
+
+// Cross-domain with custom cookie
+const customTracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	cookieName: 'my_visitor',
+	domain: '.your-domain.com',
+	sameSite: 'None',
+	secure: true
+});
+// Results in: 'my_visitor=abc123; path=/; domain=.your-domain.com; secure; samesite=None'
+```
+
+### Cookie Persistence
+
+The tracker maintains cookies across page loads and browser sessions:
+
+```typescript
+// Cookie is automatically synchronized with localStorage
+window.getVisitorToken().then(token => {
+	// Check the cookie in browser dev tools:
+	// Name: visitor_token (or your custom cookieName)
+	// Value: auto-generated UUID or custom token
+	// Domain: your configured domain
+	// Path: /
+	// SameSite: your configured policy
+	// Secure: true if required
+	console.log('Current token:', token);
+});
+```
+
+### Setup Your HTML
+
+```html
+<!-- Add the tracking script to your page -->
+<script src="https://your-domain.com/snippet.js"></script>
+```
+
+### Using the Tracker APIs
+
+```typescript
+// Get the current visitor token
+window.getVisitorToken().then(token => {
+	console.log('Visitor token:', token);
 });
 
-// In parent frame:
+// Listen for token ready events
+window.addEventListener('visitor:token-ready', event => {
+	const { token, timestamp } = event.detail;
+	console.log('Token is ready:', token);
+	console.log('Timestamp:', new Date(timestamp));
+});
+```
+
+### Parent Frame Synchronization
+
+Enable syncing between parent window and iframe:
+
+```typescript
+// Server setup
+const tracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	syncWithParent: true,
+	cookieName: 'my_visitor',
+	storageKey: 'my_visitor_storage'
+});
+
+// In browser
+// The token will automatically sync between iframe and parent
+// You can listen for changes:
+window.addEventListener('visitor:token-ready', event => {
+	const { token, timestamp, source } = event.detail;
+	console.log('Token updated from:', source);
+	console.log('New token:', token);
+});
+
+// Force token refresh
 window.getVisitorToken().then(token => {
 	console.log('Current visitor token:', token);
 });
+```
+
+### Working with Custom Storage
+
+The tracker provides multiple storage mechanisms that work together:
+
+```typescript
+// Server setup
+const tracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	cookieName: 'custom_visitor', // Custom cookie name
+	storageKey: 'custom_storage_key', // Custom localStorage key
+	syncWithParent: true
+});
+
+// In browser
+// The token is automatically stored in:
+// 1. localStorage (using storageKey)
+// 2. cookies (using cookieName)
+// 3. memory (fallback)
+// 4. parent window (if syncWithParent is true)
+
+// The tracker automatically syncs between all storage methods
+// and recovers from storage clearing
+```
+
+### Security Features in Action
+
+The tracker includes several security measures that work automatically:
+
+```typescript
+// Secure origin checking
+window.addEventListener('message', event => {
+	// Messages from unauthorized origins are automatically rejected
+	// You'll see a warning in the console:
+	// "Rejected message from unauthorized origin: unauthorized-domain.com"
+});
+
+// CSP violations
+// If the iframe's CSP is violated, you'll see warnings:
+// "Refused to load frame from 'unauthorized-domain.com' because it violates the following Content Security Policy directive..."
+
+// Cookie security
+// SameSite=None cookies automatically force secure flag
+// You'll see a warning if misconfigured:
+// "SameSite=None requires secure=true. Forcing secure=true."
 ```
 
 ## 🔒 Security Features

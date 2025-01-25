@@ -109,7 +109,6 @@ describe('/index', () => {
 			const jsCode = tracker.js();
 
 			expect(jsCode).to.include('window.getVisitorToken');
-			expect(jsCode).to.include('window.setVisitorToken');
 			expect(jsCode).to.include('window._sessionTrackerInitialized');
 		});
 	});
