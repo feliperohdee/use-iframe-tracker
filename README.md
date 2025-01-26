@@ -35,7 +35,7 @@ import HtmlTracker from 'use-iframe-tracker';
 
 // Initialize with minimal configuration
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com'
+	iframeUrl: 'https://your-domain.com/iframe'
 });
 
 // Add the tracker iframe to your page
@@ -48,7 +48,7 @@ const trackerScript = tracker.js();
 
 ```typescript
 type TrackerConfig = {
-	baseUrl: string; // Base URL for the tracker iframe
+	iframeUrl: string; // Base URL for the tracker iframe
 	storageKey?: string; // localStorage key (default: 'visitor_token')
 	cookieName?: string; // Cookie name (default: 'visitor_token')
 	syncWithParent?: boolean; // Enable parent frame sync (default: false)
@@ -71,7 +71,7 @@ export default {
 
 		// Initialize tracker with your configuration
 		const tracker = new HtmlTracker({
-			baseUrl: 'https://your-worker-domain.com',
+			iframeUrl: 'https://your-worker-domain.com/iframe',
 			secure: true,
 			sameSite: 'None'
 		});
@@ -119,7 +119,7 @@ wrangler deploy
 
 ```typescript
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	storageKey: 'custom_visitor_id',
 	cookieName: 'custom_visitor_cookie'
 });
@@ -129,7 +129,7 @@ const tracker = new HtmlTracker({
 
 ```typescript
 const tracker = new HtmlTracker({
-	baseUrl: 'https://tracking.your-domain.com',
+	iframeUrl: 'https://tracking.your-domain.com/iframe',
 	domain: '.your-domain.com',
 	sameSite: 'None',
 	secure: true
@@ -142,7 +142,7 @@ const tracker = new HtmlTracker({
 
 ```typescript
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	cookieName: 'visitor_id', // Custom cookie name (default: 'visitor_token')
 	domain: '.your-domain.com', // Cookie domain (optional)
 	secure: true, // Use secure cookie (default: true)
@@ -157,7 +157,7 @@ The tracker handles different cookie configurations:
 ```typescript
 // Strict same-site policy (most secure)
 const strictTracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	sameSite: 'Strict',
 	secure: true
 });
@@ -165,14 +165,14 @@ const strictTracker = new HtmlTracker({
 
 // Lax same-site policy (balanced)
 const laxTracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	sameSite: 'Lax'
 });
 // Results in: 'visitor_token=abc123; path=/; secure; samesite=Lax'
 
 // Cross-domain tracking (least restrictive)
 const crossDomainTracker = new HtmlTracker({
-	baseUrl: 'https://tracking.your-domain.com',
+	iframeUrl: 'https://tracking.your-domain.com/iframe',
 	domain: '.your-domain.com',
 	sameSite: 'None' // Will force secure=true
 });
@@ -186,7 +186,7 @@ The tracker includes automatic cookie security features:
 ```typescript
 // SameSite=None automatically forces secure flag
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	sameSite: 'None',
 	secure: false // Will be forced to true
 });
@@ -195,7 +195,7 @@ const tracker = new HtmlTracker({
 
 // Cross-domain with custom cookie
 const customTracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	cookieName: 'my_visitor',
 	domain: '.your-domain.com',
 	sameSite: 'None',
@@ -229,7 +229,7 @@ The tracker supports automatic redirects after token generation:
 ```typescript
 // Server setup with custom redirect parameter
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	redirectAttribute: 'destination' // Custom redirect parameter (default: 'redirect')
 });
 
@@ -243,7 +243,7 @@ const tracker = new HtmlTracker({
 ```typescript
 // Basic redirect after token generation
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com'
+	iframeUrl: 'https://your-domain.com/iframe'
 });
 
 // URL: https://your-domain.com/page?redirect=https://destination.com
@@ -253,7 +253,7 @@ const tracker = new HtmlTracker({
 
 // Custom redirect parameter
 const customTracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	redirectAttribute: 'goto'
 });
 
@@ -291,7 +291,7 @@ Enable syncing between parent window and iframe:
 ```typescript
 // Server setup
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	syncWithParent: true,
 	cookieName: 'my_visitor',
 	storageKey: 'my_visitor_storage'
@@ -319,7 +319,7 @@ The tracker provides multiple storage mechanisms that work together:
 ```typescript
 // Server setup
 const tracker = new HtmlTracker({
-	baseUrl: 'https://your-domain.com',
+	iframeUrl: 'https://your-domain.com/iframe',
 	cookieName: 'custom_visitor', // Custom cookie name
 	storageKey: 'custom_storage_key', // Custom localStorage key
 	syncWithParent: true

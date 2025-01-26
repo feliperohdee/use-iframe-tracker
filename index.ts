@@ -1,13 +1,13 @@
 type TrackerConfig = {
-	baseUrl: string;
-	storageKey?: string;
-	cookieName?: string;
-	syncWithParent?: boolean;
 	checkInterval?: number;
+	cookieName?: string;
 	domain?: string;
+	iframeUrl: string;
 	redirectAttribute?: string;
-	secure?: boolean;
 	sameSite?: 'Strict' | 'Lax' | 'None';
+	secure?: boolean;
+	storageKey?: string;
+	syncWithParent?: boolean;
 };
 
 const removeCommentsAndMinify = (code: string) => {
@@ -25,18 +25,18 @@ const removeCommentsAndMinify = (code: string) => {
 };
 
 class HtmlTracker {
-	private baseUrl: string;
 	private checkInterval: number;
 	private cookieName: string;
 	private domain: string;
-	private sameSite: 'Strict' | 'Lax' | 'None';
+	private iframeUrl: string;
 	private redirectAttribute: string;
+	private sameSite: 'Strict' | 'Lax' | 'None';
 	private secure: boolean;
 	private storageKey: string;
 	private syncWithParent: boolean;
 
 	constructor(config: TrackerConfig) {
-		this.baseUrl = config.baseUrl;
+		this.iframeUrl = config.iframeUrl;
 		this.checkInterval = config.checkInterval || 1000;
 		this.cookieName = config.cookieName || 'visitor_token';
 		this.domain = config.domain || '';
@@ -70,7 +70,6 @@ class HtmlTracker {
 			"script-src 'unsafe-inline' 'self'",
 			"style-src 'unsafe-inline' 'self'",
 			"connect-src 'self'",
-			"frame-ancestors 'self'",
 			"base-uri 'self'"
 		].join('; ');
 	}
@@ -207,13 +206,14 @@ class HtmlTracker {
 				'content-type': 'text/html',
 				'content-security-policy': this.getCSPPolicy(),
 				'permissions-policy':
-					'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
-				'x-frame-options': 'SAMEORIGIN'
+					'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()'
 			}
 		};
 	}
 
 	js() {
+		const iframeUrl = new URL(this.iframeUrl);
+
 		const code = `(() => {
             if (window._sessionTrackerInitialized) {
                 return;
@@ -254,7 +254,10 @@ class HtmlTracker {
 							const redirect = params.get(CONFIG.redirectAttribute);
 
 							if (redirect) {
-								window.location.href = redirect;
+								const redirectUrl = new URL(redirect);
+								redirectUrl.searchParams.set(CONFIG.cookieName, window.VISITOR_TOKEN);
+
+								window.location.href = redirectUrl.toString();
 							}
 						}
 					})();
@@ -280,7 +283,7 @@ class HtmlTracker {
                             visibility: 'hidden'
                         });
 
-                        iframe.src = '${this.baseUrl}/iframe?t=${Date.now()}';
+                        iframe.src = '${iframeUrl.href}';
                         document.body.appendChild(iframe);
 
                         return iframe;
@@ -292,7 +295,7 @@ class HtmlTracker {
                         window.addEventListener('message', event => {
                             if (
 								!this.iframe.contentWindow ||
-                                event.origin !== '${this.baseUrl}' ||
+                                event.origin !== '${iframeUrl.origin}' ||
 								event.source !== this.iframe.contentWindow ||
                                 !event.data?.type === 'TOKEN_READY' ||
                                 !event.data?.source === 'session-tracker' ||

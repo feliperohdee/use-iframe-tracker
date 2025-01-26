@@ -3,7 +3,7 @@ import HtmlTracker from './index';
 
 describe('HtmlTracker', () => {
 	const defaultConfig = {
-		baseUrl: 'https://example.com'
+		iframeUrl: 'https://example.com/iframe'
 	};
 
 	describe('initialization', () => {
@@ -17,17 +17,20 @@ describe('HtmlTracker', () => {
 			expect(jsCode).to.be.a('string');
 			expect(body).to.include('visitor_token'); // default storage key
 			expect(jsCode).to.include('visitor_token'); // default cookie name
+			expect(body).to.include('checkInterval: 1000'); // default check interval
+			expect(jsCode).to.include('samesite=None'); // default sameSite
 		});
 
 		it('should override defaults with provided config', () => {
 			const config = {
-				baseUrl: 'https://example.com',
-				storageKey: 'custom_storage',
-				cookieName: 'custom_cookie',
 				checkInterval: 2000,
+				cookieName: 'custom_cookie',
 				domain: 'example.com',
+				iframeUrl: 'https://example.com',
 				sameSite: 'Strict' as const,
-				secure: false
+				secure: false,
+				storageKey: 'custom_storage',
+				redirectAttribute: 'custom_redirect'
 			};
 
 			const tracker = new HtmlTracker(config);
@@ -39,6 +42,7 @@ describe('HtmlTracker', () => {
 			expect(body).to.include('checkInterval: 2000');
 			expect(jsCode).to.include('domain=example.com');
 			expect(jsCode).to.include('samesite=Strict');
+			expect(jsCode).to.include("redirectAttribute: 'custom_redirect'");
 		});
 	});
 
@@ -63,6 +67,9 @@ describe('HtmlTracker', () => {
 			expect(headers['content-security-policy']).to.be.a('string');
 			expect(headers['content-security-policy']).to.include("default-src 'self'");
 			expect(headers['content-security-policy']).to.include("script-src 'unsafe-inline'");
+			expect(headers['content-security-policy']).to.include("style-src 'unsafe-inline'");
+			expect(headers['content-security-policy']).to.include("connect-src 'self'");
+			expect(headers['content-security-policy']).to.include("base-uri 'self'");
 		});
 
 		it('should set proper iframe sandbox attributes', () => {
@@ -77,9 +84,22 @@ describe('HtmlTracker', () => {
 			const tracker = new HtmlTracker(defaultConfig);
 			const { headers } = tracker.iframe();
 
-			expect(headers['x-frame-options']).to.equal('SAMEORIGIN');
 			expect(headers['permissions-policy']).to.be.a('string');
+			expect(headers['permissions-policy']).to.include('accelerometer=()');
+			expect(headers['permissions-policy']).to.include('camera=()');
+			expect(headers['permissions-policy']).to.include('geolocation=()');
 			expect(headers['content-type']).to.equal('text/html');
+		});
+
+		it('should set secure iframe attributes', () => {
+			const tracker = new HtmlTracker(defaultConfig);
+			const jsCode = tracker.js();
+
+			expect(jsCode).to.include('referrerpolicy');
+			expect(jsCode).to.include('importance');
+			expect(jsCode).to.include('no-referrer');
+			expect(jsCode).to.include("pointerEvents: 'none'");
+			expect(jsCode).to.include("visibility: 'hidden'");
 		});
 	});
 
@@ -111,6 +131,7 @@ describe('HtmlTracker', () => {
 
 			expect(jsCode).to.include('window.getVisitorToken');
 			expect(jsCode).to.include('window._sessionTrackerInitialized');
+			expect(jsCode).to.include('class SessionTracker');
 		});
 	});
 
@@ -123,6 +144,7 @@ describe('HtmlTracker', () => {
 			expect(body).to.include('getToken');
 			expect(body).to.include('setToken');
 			expect(body).to.include('crypto.randomUUID');
+			expect(body).to.include('memoryToken');
 		});
 
 		it('should handle token synchronization with parent', () => {
@@ -150,6 +172,28 @@ describe('HtmlTracker', () => {
 			expect(body).to.include('TOKEN_READY');
 			expect(jsCode).to.include('setupSecureMessageListener');
 			expect(jsCode).to.include('handleTokenReady');
+			expect(jsCode).to.include('tokenReadyCallbacks');
+		});
+
+		it('should include redirect handling code', () => {
+			const tracker = new HtmlTracker(defaultConfig);
+			const jsCode = tracker.js();
+
+			expect(jsCode).to.include('redirectAttribute');
+			expect(jsCode).to.include('window.location.search');
+			expect(jsCode).to.include('URLSearchParams');
+			expect(jsCode).to.include('window.location.href');
+		});
+
+		it('should include error handling with safeExecute', () => {
+			const tracker = new HtmlTracker(defaultConfig);
+			const { body } = tracker.iframe();
+			const jsCode = tracker.js();
+
+			expect(body).to.include('safeExecute');
+			expect(body).to.include('console.error');
+			expect(jsCode).to.include('safeExecute');
+			expect(jsCode).to.include('console.error');
 		});
 	});
 });
