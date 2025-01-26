@@ -5,12 +5,23 @@ type TrackerConfig = {
 	syncWithParent?: boolean;
 	checkInterval?: number;
 	domain?: string;
+	redirectAttribute?: string;
 	secure?: boolean;
 	sameSite?: 'Strict' | 'Lax' | 'None';
 };
 
 const removeCommentsAndMinify = (code: string) => {
-	return code.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '').replace(/\s+/g, ' ');
+	// First remove multi-line comments /* ... */
+	let result = code.replace(/\/\*[\s\S]*?\*\//g, '');
+
+	// Then remove single-line comments while preserving URLs
+	// Negative lookbehind (?<!:) ensures we don't match // after :
+	result = result.replace(/(?<!:)\/\/.*/g, '');
+
+	// Finally, minimize whitespace while preserving single spaces
+	result = result.replace(/\s+/g, ' ').trim();
+
+	return result;
 };
 
 class HtmlTracker {
@@ -19,6 +30,7 @@ class HtmlTracker {
 	private cookieName: string;
 	private domain: string;
 	private sameSite: 'Strict' | 'Lax' | 'None';
+	private redirectAttribute: string;
 	private secure: boolean;
 	private storageKey: string;
 	private syncWithParent: boolean;
@@ -28,6 +40,7 @@ class HtmlTracker {
 		this.checkInterval = config.checkInterval || 1000;
 		this.cookieName = config.cookieName || 'visitor_token';
 		this.domain = config.domain || '';
+		this.redirectAttribute = config.redirectAttribute || 'redirect';
 		this.sameSite = config.sameSite || 'None';
 		this.secure = config.secure ?? true;
 		this.storageKey = config.storageKey || 'visitor_token';
@@ -67,20 +80,17 @@ class HtmlTracker {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Session Manager</title>
-                <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
-                <meta http-equiv="Content-Security-Policy" content="${this.getCSPPolicy()}">
-                <meta http-equiv="Permissions-Policy" content="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()">
+                <title>You are being tracked</title>
             </head>
             <body>
                 <script>
                     (() => {
                         const CONFIG = {
-                            storageKey: '${this.storageKey}',
-                            cookieName: '${this.cookieName}',
-                            syncWithParent: ${this.syncWithParent},
                             checkInterval: ${this.checkInterval},
-                            cookieOptions: '${this.getCookieOptions()}'
+                            cookieName: '${this.cookieName}',
+                            cookieOptions: '${this.getCookieOptions()}',
+                            storageKey: '${this.storageKey}',
+                            syncWithParent: ${this.syncWithParent},
                         };
 
                         const safeExecute = (fn) => {
@@ -93,7 +103,9 @@ class HtmlTracker {
                         };
 
                         const generateToken = () => {
-                            return safeExecute(() => crypto.randomUUID());
+                            return safeExecute(() => {
+								return crypto.randomUUID();
+							});
                         };
 
                         const setCookie = (name, value) => {
@@ -102,11 +114,15 @@ class HtmlTracker {
                             });
                         };
 
-                        const getCookie = (name) => {
+                        const getCookie = name => {
                             return safeExecute(() => {
                                 const value = '; ' + document.cookie;
                                 const parts = value.split('; ' + name + '=');
-                                if (parts.length === 2) return parts.pop()?.split(';').shift();
+                                
+								if (parts.length === 2) {
+									return parts.pop()?.split(';').shift();
+								}
+
                                 return null;
                             });
                         };
@@ -114,7 +130,7 @@ class HtmlTracker {
                         let memoryToken = '';
                         let isInitialized = false;
 
-                        const notifyParent = (token) => {
+                        const notifyParent = token => {
                             if (window.parent && token) {
                                 const response = {
                                     token,
@@ -136,7 +152,7 @@ class HtmlTracker {
                             });
                         };
 
-                        const setToken = (token) => {
+                        const setToken = token => {
                             if (!token) return;
                             
                             safeExecute(() => {
@@ -146,8 +162,10 @@ class HtmlTracker {
                             });
                         };
 
-                        const handleMessage = (event) => {
-                            if (!event.data?.type) return;
+                        const handleMessage = event => {
+                            if (!event.data?.type) {
+								return;
+							};
 
                             switch (event.data.type) {
                                 case 'GET_TOKEN':
@@ -157,7 +175,9 @@ class HtmlTracker {
                         };
 
                         const initialize = () => {
-                            if (isInitialized) return;
+                            if (isInitialized) {
+								return;
+							}
                             
                             window.addEventListener('message', handleMessage);
                             
@@ -181,7 +201,16 @@ class HtmlTracker {
             </html>
         `;
 
-		return removeCommentsAndMinify(html);
+		return {
+			body: removeCommentsAndMinify(html),
+			headers: {
+				'content-type': 'text/html',
+				'content-security-policy': this.getCSPPolicy(),
+				'permissions-policy':
+					'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+				'x-frame-options': 'SAMEORIGIN'
+			}
+		};
 	}
 
 	js() {
@@ -191,13 +220,14 @@ class HtmlTracker {
             }
 
             const CONFIG = {
-                storageKey: '${this.storageKey}',
+				redirectAttribute: '${this.redirectAttribute}',
                 cookieName: '${this.cookieName}',
-                syncWithParent: ${this.syncWithParent},
-                cookieOptions: '${this.getCookieOptions()}'
+                cookieOptions: '${this.getCookieOptions()}',
+                storageKey: '${this.storageKey}',
+                syncWithParent: ${this.syncWithParent}
             };
 
-            const safeExecute = (fn) => {
+            const safeExecute = fn => {
                 try {
                     return fn();
                 } catch (error) {
@@ -212,6 +242,22 @@ class HtmlTracker {
                     this.iframe = this.createSecureIframe();
                     this.setupSecureMessageListener();
                     window._sessionTrackerInitialized = true;
+
+					(async () => {
+						await new Promise((resolve) => {
+							this.iframe.onload = resolve;
+						});
+						await this.getToken();
+						const params = new URLSearchParams(window.location.search);
+
+						if (params.has(CONFIG.redirectAttribute)) {
+							const redirect = params.get(CONFIG.redirectAttribute);
+
+							if (redirect) {
+								window.location.href = redirect;
+							}
+						}
+					})();
                 }
 
                 createSecureIframe() {
@@ -222,7 +268,6 @@ class HtmlTracker {
                         iframe.allow = '';
                         
                         iframe.setAttribute('referrerpolicy', 'no-referrer');
-                        iframe.setAttribute('loading', 'lazy');
                         iframe.setAttribute('importance', 'low');
                         
                         Object.assign(iframe.style, {
@@ -235,7 +280,7 @@ class HtmlTracker {
                             visibility: 'hidden'
                         });
 
-                        iframe.src = '${this.baseUrl}/iframe';
+                        iframe.src = '${this.baseUrl}/iframe?t=${Date.now()}';
                         document.body.appendChild(iframe);
 
                         return iframe;
@@ -244,18 +289,11 @@ class HtmlTracker {
 
                 setupSecureMessageListener() {
                     safeExecute(() => {
-                        window.addEventListener('message', (event) => {
-                            if (event.origin !== '${this.baseUrl}') {
-                                console.warn('Rejected message from unauthorized origin:', event.origin);
-                                return;
-                            }
-
-                            if (!this.iframe.contentWindow || event.source !== this.iframe.contentWindow) {
-                                console.warn('Rejected message from unauthorized source');
-                                return;
-                            }
-
+                        window.addEventListener('message', event => {
                             if (
+								!this.iframe.contentWindow ||
+                                event.origin !== '${this.baseUrl}' ||
+								event.source !== this.iframe.contentWindow ||
                                 !event.data?.type === 'TOKEN_READY' ||
                                 !event.data?.source === 'session-tracker' ||
                                 !event.data?.token
@@ -293,7 +331,7 @@ class HtmlTracker {
                 }
 
                 getToken() {
-                    return new Promise((resolve) => {
+                    return new Promise(resolve => {
                         if (window.VISITOR_TOKEN) {
                             resolve(window.VISITOR_TOKEN);
                             return;
@@ -313,7 +351,10 @@ class HtmlTracker {
             }
 
             const tracker = new SessionTracker();
-            window.getVisitorToken = () => tracker.getToken();
+
+            window.getVisitorToken = () => {
+				return tracker.getToken();
+			};
         })();`;
 
 		return removeCommentsAndMinify(code);

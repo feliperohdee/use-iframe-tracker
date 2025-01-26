@@ -18,6 +18,7 @@
 - ⚡ Automatic token generation using crypto.randomUUID()
 - 🔄 Fallback mechanisms for token storage
 - 🎭 Parent-frame synchronization options
+- 🔀 Automatic redirect handling after token generation
 
 ## 📦 Installation
 
@@ -55,6 +56,7 @@ type TrackerConfig = {
 	domain?: string; // Cookie domain
 	secure?: boolean; // Use secure cookies (default: true)
 	sameSite?: 'Strict' | 'Lax' | 'None'; // SameSite cookie policy (default: 'None')
+	redirectAttribute?: string; // URL parameter for redirect (default: 'redirect')
 };
 ```
 
@@ -218,6 +220,45 @@ window.getVisitorToken().then(token => {
 	// Secure: true if required
 	console.log('Current token:', token);
 });
+```
+
+## 🔄 Redirect Handling
+
+The tracker supports automatic redirects after token generation:
+
+```typescript
+// Server setup with custom redirect parameter
+const tracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	redirectAttribute: 'destination' // Custom redirect parameter (default: 'redirect')
+});
+
+// Usage in URLs
+// https://your-domain.com/landing?redirect=https://final-destination.com
+// After token generation, user will be redirected to https://final-destination.com
+```
+
+### Redirect Flow Examples
+
+```typescript
+// Basic redirect after token generation
+const tracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com'
+});
+
+// URL: https://your-domain.com/page?redirect=https://destination.com
+// The tracker will:
+// 1. Generate/retrieve the visitor token
+// 2. Automatically redirect to https://destination.com
+
+// Custom redirect parameter
+const customTracker = new HtmlTracker({
+	baseUrl: 'https://your-domain.com',
+	redirectAttribute: 'goto'
+});
+
+// URL: https://your-domain.com/page?goto=https://destination.com
+// Uses 'goto' instead of default 'redirect' parameter
 ```
 
 ### Setup Your HTML

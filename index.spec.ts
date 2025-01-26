@@ -1,7 +1,7 @@
 import { expect, describe, it } from 'vitest';
 import HtmlTracker from './index';
 
-describe('/index', () => {
+describe('HtmlTracker', () => {
 	const defaultConfig = {
 		baseUrl: 'https://example.com'
 	};
@@ -9,12 +9,13 @@ describe('/index', () => {
 	describe('initialization', () => {
 		it('should initialize with default values', () => {
 			const tracker = new HtmlTracker(defaultConfig);
-			const iframeHtml = tracker.iframe();
+			const { body, headers } = tracker.iframe();
 			const jsCode = tracker.js();
 
-			expect(iframeHtml).to.be.a('string');
+			expect(body).to.be.a('string');
+			expect(headers).to.be.an('object');
 			expect(jsCode).to.be.a('string');
-			expect(iframeHtml).to.include('visitor_token'); // default storage key
+			expect(body).to.include('visitor_token'); // default storage key
 			expect(jsCode).to.include('visitor_token'); // default cookie name
 		});
 
@@ -30,12 +31,12 @@ describe('/index', () => {
 			};
 
 			const tracker = new HtmlTracker(config);
-			const iframeHtml = tracker.iframe();
+			const { body } = tracker.iframe();
 			const jsCode = tracker.js();
 
-			expect(iframeHtml).to.include('custom_storage');
-			expect(iframeHtml).to.include('custom_cookie');
-			expect(iframeHtml).to.include('checkInterval: 2000');
+			expect(body).to.include('custom_storage');
+			expect(body).to.include('custom_cookie');
+			expect(body).to.include('checkInterval: 2000');
 			expect(jsCode).to.include('domain=example.com');
 			expect(jsCode).to.include('samesite=Strict');
 		});
@@ -57,11 +58,11 @@ describe('/index', () => {
 
 		it('should include proper CSP headers', () => {
 			const tracker = new HtmlTracker(defaultConfig);
-			const iframeHtml = tracker.iframe();
+			const { headers } = tracker.iframe();
 
-			expect(iframeHtml).to.include('Content-Security-Policy');
-			expect(iframeHtml).to.include("default-src 'self'");
-			expect(iframeHtml).to.include("script-src 'unsafe-inline'");
+			expect(headers['content-security-policy']).to.be.a('string');
+			expect(headers['content-security-policy']).to.include("default-src 'self'");
+			expect(headers['content-security-policy']).to.include("script-src 'unsafe-inline'");
 		});
 
 		it('should set proper iframe sandbox attributes', () => {
@@ -72,36 +73,36 @@ describe('/index', () => {
 			expect(jsCode).to.include('allow-same-origin');
 		});
 
-		it('should include proper security headers in iframe', () => {
+		it('should include proper security headers in iframe response', () => {
 			const tracker = new HtmlTracker(defaultConfig);
-			const iframeHtml = tracker.iframe();
+			const { headers } = tracker.iframe();
 
-			expect(iframeHtml).to.include('X-Frame-Options');
-			expect(iframeHtml).to.include('Permissions-Policy');
+			expect(headers['x-frame-options']).to.equal('SAMEORIGIN');
+			expect(headers['permissions-policy']).to.be.a('string');
+			expect(headers['content-type']).to.equal('text/html');
 		});
 	});
 
 	describe('code generation', () => {
-		it('should remove comments and minify code', () => {
+		it('should generate minified code without comments', () => {
 			const tracker = new HtmlTracker(defaultConfig);
-			const iframeHtml = tracker.iframe();
+			const { body } = tracker.iframe();
 			const jsCode = tracker.js();
 
-			expect(iframeHtml).not.to.include('//');
-			expect(iframeHtml).not.to.include('/*');
-			expect(jsCode).not.to.include('//');
+			expect(body).not.to.include('//');
+			expect(body).not.to.include('/*');
 			expect(jsCode).not.to.include('/*');
 		});
 
 		it('should generate valid HTML for iframe', () => {
 			const tracker = new HtmlTracker(defaultConfig);
-			const iframeHtml = tracker.iframe();
+			const { body } = tracker.iframe();
 
-			expect(iframeHtml).to.include('<!DOCTYPE html>');
-			expect(iframeHtml).to.include('<html>');
-			expect(iframeHtml).to.include('</html>');
-			expect(iframeHtml).to.include('<script>');
-			expect(iframeHtml).to.include('</script>');
+			expect(body).to.include('<!DOCTYPE html>');
+			expect(body).to.include('<html>');
+			expect(body).to.include('</html>');
+			expect(body).to.include('<script>');
+			expect(body).to.include('</script>');
 		});
 
 		it('should include necessary global functions in JS', () => {
@@ -113,19 +114,42 @@ describe('/index', () => {
 		});
 	});
 
-	describe('parent sync functionality', () => {
-		it('should handle syncWithParent configuration', () => {
+	describe('token management', () => {
+		it('should include token generation and management code in iframe', () => {
+			const tracker = new HtmlTracker(defaultConfig);
+			const { body } = tracker.iframe();
+
+			expect(body).to.include('generateToken');
+			expect(body).to.include('getToken');
+			expect(body).to.include('setToken');
+			expect(body).to.include('crypto.randomUUID');
+		});
+
+		it('should handle token synchronization with parent', () => {
 			const config = {
 				...defaultConfig,
 				syncWithParent: true
 			};
 
 			const tracker = new HtmlTracker(config);
-			const iframeHtml = tracker.iframe();
+			const { body } = tracker.iframe();
 			const jsCode = tracker.js();
 
-			expect(iframeHtml).to.include('syncWithParent: true');
+			expect(body).to.include('syncWithParent: true');
 			expect(jsCode).to.include('syncWithParent: true');
+			expect(jsCode).to.include('localStorage.setItem');
+			expect(jsCode).to.include('setCookie');
+		});
+
+		it('should include proper message handling for token communication', () => {
+			const tracker = new HtmlTracker(defaultConfig);
+			const { body } = tracker.iframe();
+			const jsCode = tracker.js();
+
+			expect(body).to.include('handleMessage');
+			expect(body).to.include('TOKEN_READY');
+			expect(jsCode).to.include('setupSecureMessageListener');
+			expect(jsCode).to.include('handleTokenReady');
 		});
 	});
 });
