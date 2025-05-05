@@ -53,9 +53,16 @@ class HtmlTracker {
 			this.secure = true;
 		}
 
-		const options = ['path=/', this.domain && `domain=${this.domain}`, this.secure && 'secure', `samesite=${this.sameSite}`].filter(
-			Boolean
-		);
+		const expirationDate = new Date();
+    	expirationDate.setFullYear(expirationDate.getFullYear() + 10);
+
+		const options = [
+			'path=/',
+			this.domain && `domain=${this.domain}`,
+			this.secure && 'secure',
+			`samesite=${this.sameSite}`,
+			`expires=${expirationDate.toUTCString()}`
+		].filter(Boolean);
 
 		return options.join('; ');
 	}
