@@ -54,7 +54,7 @@ class HtmlTracker {
 		}
 
 		const expirationDate = new Date();
-    	expirationDate.setFullYear(expirationDate.getFullYear() + 10);
+		expirationDate.setFullYear(expirationDate.getFullYear() + 10);
 
 		const options = [
 			'path=/',
