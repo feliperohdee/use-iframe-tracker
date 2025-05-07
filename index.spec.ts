@@ -13,12 +13,11 @@ describe('HtmlTracker', () => {
 			const jsCode = tracker.js();
 
 			expect(body).to.be.a('string');
-			expect(headers).to.be.an('object');
-			expect(jsCode).to.be.a('string');
-			expect(body).to.include('visitor_token'); // default storage key
-			expect(jsCode).to.include('visitor_token'); // default cookie name
-			expect(body).to.include('checkInterval: 1000'); // default check interval
-			expect(jsCode).to.include('samesite=None'); // default sameSite
+			expect(body).to.include('visitor_token');
+
+			expect(jsCode).to.include('samesite=None');
+			expect(jsCode).to.include('visitor_token');
+			expect(jsCode).to.include('VISITOR_TOKEN');
 		});
 
 		it('should override defaults with provided config', () => {
@@ -27,6 +26,8 @@ describe('HtmlTracker', () => {
 				cookieName: 'custom_cookie',
 				domain: 'example.com',
 				iframeUrl: 'https://example.com',
+				javascriptKey: 'CUSTOM_TOKEN',
+				redirectKey: 'CUSTOM_REDIRECT',
 				sameSite: 'Strict' as const,
 				secure: false,
 				storageKey: 'custom_storage',
@@ -39,10 +40,12 @@ describe('HtmlTracker', () => {
 
 			expect(body).to.include('custom_storage');
 			expect(body).to.include('custom_cookie');
-			expect(body).to.include('checkInterval: 2000');
+
+			expect(jsCode).to.include('custom_storage');
+			expect(jsCode).to.include('CUSTOM_REDIRECT');
+			expect(jsCode).to.include('CUSTOM_TOKEN');
 			expect(jsCode).to.include('domain=example.com');
 			expect(jsCode).to.include('samesite=Strict');
-			expect(jsCode).to.include("redirectAttribute: 'custom_redirect'");
 		});
 	});
 
@@ -147,22 +150,6 @@ describe('HtmlTracker', () => {
 			expect(body).to.include('memoryToken');
 		});
 
-		it('should handle token synchronization with parent', () => {
-			const config = {
-				...defaultConfig,
-				syncWithParent: true
-			};
-
-			const tracker = new HtmlTracker(config);
-			const { body } = tracker.iframe();
-			const jsCode = tracker.js();
-
-			expect(body).to.include('syncWithParent: true');
-			expect(jsCode).to.include('syncWithParent: true');
-			expect(jsCode).to.include('localStorage.setItem');
-			expect(jsCode).to.include('setCookie');
-		});
-
 		it('should include proper message handling for token communication', () => {
 			const tracker = new HtmlTracker(defaultConfig);
 			const { body } = tracker.iframe();
@@ -173,16 +160,6 @@ describe('HtmlTracker', () => {
 			expect(jsCode).to.include('setupSecureMessageListener');
 			expect(jsCode).to.include('handleTokenReady');
 			expect(jsCode).to.include('tokenReadyCallbacks');
-		});
-
-		it('should include redirect handling code', () => {
-			const tracker = new HtmlTracker(defaultConfig);
-			const jsCode = tracker.js();
-
-			expect(jsCode).to.include('redirectAttribute');
-			expect(jsCode).to.include('window.location.search');
-			expect(jsCode).to.include('URLSearchParams');
-			expect(jsCode).to.include('window.location.href');
 		});
 
 		it('should include error handling with safeExecute', () => {

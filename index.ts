@@ -1,15 +1,3 @@
-type TrackerConfig = {
-	checkInterval?: number;
-	cookieName?: string;
-	domain?: string;
-	iframeUrl: string;
-	redirectAttribute?: string;
-	sameSite?: 'Strict' | 'Lax' | 'None';
-	secure?: boolean;
-	storageKey?: string;
-	syncWithParent?: boolean;
-};
-
 const removeCommentsAndMinify = (code: string) => {
 	// First remove multi-line comments /* ... */
 	let result = code.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -29,18 +17,34 @@ class HtmlTracker {
 	private cookieName: string;
 	private domain: string;
 	private iframeUrl: string;
+	private javascriptKey: string;
 	private redirectAttribute: string;
+	private redirectKey: string;
 	private sameSite: 'Strict' | 'Lax' | 'None';
 	private secure: boolean;
 	private storageKey: string;
 	private syncWithParent: boolean;
 
-	constructor(config: TrackerConfig) {
+	constructor(config: {
+		checkInterval?: number;
+		cookieName?: string;
+		domain?: string;
+		iframeUrl: string;
+		javascriptKey?: string;
+		redirectAttribute?: string;
+		redirectKey?: string;
+		sameSite?: 'Strict' | 'Lax' | 'None';
+		secure?: boolean;
+		storageKey?: string;
+		syncWithParent?: boolean;
+	}) {
 		this.iframeUrl = config.iframeUrl;
 		this.checkInterval = config.checkInterval || 1000;
 		this.cookieName = config.cookieName || 'visitor_token';
 		this.domain = config.domain || '';
+		this.javascriptKey = config.javascriptKey || 'VISITOR_TOKEN';
 		this.redirectAttribute = config.redirectAttribute || 'redirect';
+		this.redirectKey = config.redirectKey || 'visitor_token';
 		this.sameSite = config.sameSite || 'None';
 		this.secure = config.secure ?? true;
 		this.storageKey = config.storageKey || 'visitor_token';
@@ -91,19 +95,11 @@ class HtmlTracker {
             <body>
                 <script>
                     (() => {
-                        const CONFIG = {
-                            checkInterval: ${this.checkInterval},
-                            cookieName: '${this.cookieName}',
-                            cookieOptions: '${this.getCookieOptions()}',
-                            storageKey: '${this.storageKey}',
-                            syncWithParent: ${this.syncWithParent},
-                        };
-
                         const safeExecute = (fn) => {
                             try {
                                 return fn();
-                            } catch (error) {
-                                console.error('Session tracker error:', error);
+                            } catch (err) {
+                                console.error('Session tracker error:', err);
                                 return null;
                             }
                         };
@@ -116,7 +112,7 @@ class HtmlTracker {
 
                         const setCookie = (name, value) => {
                             safeExecute(() => {
-                                document.cookie = name + '=' + value + '; ' + CONFIG.cookieOptions;
+                                document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
                             });
                         };
 
@@ -152,8 +148,8 @@ class HtmlTracker {
 
                         const getToken = () => {
                             return safeExecute(() => {
-                                return localStorage.getItem(CONFIG.storageKey) || 
-                                       getCookie(CONFIG.cookieName) || 
+                                return localStorage.getItem('${this.storageKey}') || 
+                                       getCookie('${this.cookieName}') || 
                                        memoryToken;
                             });
                         };
@@ -162,8 +158,8 @@ class HtmlTracker {
                             if (!token) return;
                             
                             safeExecute(() => {
-                                localStorage.setItem(CONFIG.storageKey, token);
-                                setCookie(CONFIG.cookieName, token);
+                                localStorage.setItem('${this.storageKey}', token);
+                                setCookie('${this.cookieName}', token);
                                 memoryToken = token;
                             });
                         };
@@ -191,11 +187,11 @@ class HtmlTracker {
                             setToken(token);
                             
                             setInterval(() => {
-                                const storedToken = localStorage.getItem(CONFIG.storageKey);
+                                const storedToken = localStorage.getItem('${this.storageKey}');
                                 if (!storedToken && memoryToken) {
                                     setToken(memoryToken);
                                 }
-                            }, CONFIG.checkInterval);
+                            }, ${this.checkInterval});
 
                             isInitialized = true;
                         };
@@ -226,19 +222,11 @@ class HtmlTracker {
                 return;
             }
 
-            const CONFIG = {
-				redirectAttribute: '${this.redirectAttribute}',
-                cookieName: '${this.cookieName}',
-                cookieOptions: '${this.getCookieOptions()}',
-                storageKey: '${this.storageKey}',
-                syncWithParent: ${this.syncWithParent}
-            };
-
             const safeExecute = fn => {
                 try {
                     return fn();
-                } catch (error) {
-                    console.error('Session tracker error:', error);
+                } catch (err) {
+                    console.error('Session tracker error:', err);
                     return null;
                 }
             };
@@ -257,12 +245,12 @@ class HtmlTracker {
 						await this.getToken();
 						const params = new URLSearchParams(window.location.search);
 
-						if (params.has(CONFIG.redirectAttribute)) {
-							const redirect = params.get(CONFIG.redirectAttribute);
+						if (params.has('${this.redirectAttribute}')) {
+							const redirect = params.get('${this.redirectAttribute}');
 
 							if (redirect) {
 								const redirectUrl = new URL(redirect);
-								redirectUrl.searchParams.set(CONFIG.cookieName, window.VISITOR_TOKEN);
+								redirectUrl.searchParams.set('${this.redirectKey}', window.${this.javascriptKey});
 
 								window.location.href = redirectUrl.toString();
 							}
@@ -318,11 +306,11 @@ class HtmlTracker {
 
                 handleTokenReady(data) {
                     safeExecute(() => {
-                        window.VISITOR_TOKEN = data.token;
+                        window.${this.javascriptKey} = data.token;
 
-                        if (CONFIG.syncWithParent) {
-                            localStorage.setItem(CONFIG.storageKey, data.token);
-                            this.setCookie(CONFIG.cookieName, data.token);
+                        if (${this.syncWithParent}) {
+                            localStorage.setItem('${this.storageKey}', data.token);
+                            this.setCookie('${this.cookieName}', data.token);
                         }
 
                         window.dispatchEvent(new CustomEvent('visitor:token-ready', {
@@ -336,14 +324,14 @@ class HtmlTracker {
 
                 setCookie(name, value) {
                     safeExecute(() => {
-                        document.cookie = name + '=' + value + '; ' + CONFIG.cookieOptions;
+                        document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
                     });
                 }
 
                 getToken() {
                     return new Promise(resolve => {
-                        if (window.VISITOR_TOKEN) {
-                            resolve(window.VISITOR_TOKEN);
+                        if (window.${this.javascriptKey}) {
+                            resolve(window.${this.javascriptKey});
                             return;
                         }
 

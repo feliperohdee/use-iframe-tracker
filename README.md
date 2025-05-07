@@ -48,15 +48,17 @@ const trackerScript = tracker.js();
 
 ```typescript
 type TrackerConfig = {
-	iframeUrl: string; // Base URL for the tracker iframe
-	storageKey?: string; // localStorage key (default: 'visitor_token')
-	cookieName?: string; // Cookie name (default: 'visitor_token')
-	syncWithParent?: boolean; // Enable parent frame sync (default: false)
 	checkInterval?: number; // Storage check interval (default: 1000ms)
+	cookieName?: string; // Cookie name (default: 'visitor_token')
 	domain?: string; // Cookie domain
-	secure?: boolean; // Use secure cookies (default: true)
-	sameSite?: 'Strict' | 'Lax' | 'None'; // SameSite cookie policy (default: 'None')
+	iframeUrl: string; // Base URL for the tracker iframe
+	javascriptKey?: string; // Key for the javascript variable (default: 'visitor_token')
 	redirectAttribute?: string; // URL parameter for redirect (default: 'redirect')
+	redirectKey?: string; // Key for the redirect parameter (default: 'visitor_token')
+	sameSite?: 'Strict' | 'Lax' | 'None'; // SameSite cookie policy (default: 'None')
+	secure?: boolean; // Use secure cookies (default: true)
+	storageKey?: string; // localStorage key (default: 'visitor_token')
+	syncWithParent?: boolean; // Enable parent frame sync (default: false)
 };
 ```
 
