@@ -94,14 +94,6 @@ class HtmlTracker {
 						let initialized = false;
                         let memoryToken = '';
 
-						const clear = () => {
-							safeExecute(() => {
-								localStorage.removeItem('${this.storageKey}');
-								document.cookie = '${this.cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-								memoryToken = '';
-							});
-						};
-
 						const generateToken = () => {
                             return safeExecute(() => {
 								return crypto.randomUUID();
@@ -135,12 +127,15 @@ class HtmlTracker {
 							};
 
                             switch (event.data.type) {
-								case 'CLEAR':
-									clear();
+								case 'GET_TOKEN':
+									notifyParent(getToken());
 									break;
-                                case 'GET_TOKEN':
-                                    notifyParent(getToken());
-                                    break;
+								case 'RESET_TOKEN':
+									resetToken();
+									break;
+								case 'SET_TOKEN':
+									setToken(event.data.token);
+									break;
                             }
                         };
 
@@ -186,6 +181,14 @@ class HtmlTracker {
                                 }, '*');
                             }
                         };
+
+						const resetToken = () => {
+							safeExecute(() => {
+								localStorage.removeItem('${this.storageKey}');
+								document.cookie = '${this.cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+								memoryToken = '';
+							});
+						};
 
                         const safeExecute = (fn) => {
                             try {
@@ -243,14 +246,6 @@ class HtmlTracker {
 
 			let iframe;
 			let tokenReadyCallbacks = new Set();
-
-			const clear = () => {
-				safeExecute(() => {
-					iframe.contentWindow.postMessage({
-						type: 'CLEAR'
-					}, '*');
-				});
-			};
 
 			const createSecureIframe = () => {
 				return safeExecute(() => {
@@ -315,9 +310,18 @@ class HtmlTracker {
 					safeExecute(() => {
 						(${options?.onInit || '() => null'})({
 							...data,
-							clear: clear.bind(this)
+							resetToken: resetToken.bind(this),
+							setToken: setToken.bind(this)
 						});
 					});
+				});
+			};
+
+			const resetToken = () => {
+				safeExecute(() => {
+					iframe.contentWindow.postMessage({
+						type: 'RESET_TOKEN'
+					}, '*');
 				});
 			};
 
@@ -333,6 +337,15 @@ class HtmlTracker {
 			const setCookie = (name, value) => {
 				safeExecute(() => {
 					document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
+				});
+			};
+
+			const setToken = token => {
+				safeExecute(() => {
+					iframe.contentWindow.postMessage({
+						type: 'SET_TOKEN',
+						token
+					}, '*');
 				});
 			};
 
