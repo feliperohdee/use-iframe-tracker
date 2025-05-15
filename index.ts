@@ -39,7 +39,7 @@ class HtmlTracker {
 		syncWithParent?: boolean;
 	}) {
 		this.iframeUrl = config.iframeUrl;
-		this.checkInterval = config.checkInterval || 1000;
+		this.checkInterval = config.checkInterval || 10000;
 		this.cookieName = config.cookieName || 'visitor_token';
 		this.domain = config.domain || '';
 		this.javascriptKey = config.javascriptKey || 'VISITOR_TOKEN';
@@ -71,10 +71,6 @@ class HtmlTracker {
 		return options.join('; ');
 	}
 
-	private getIframeSandboxPolicy(): string {
-		return ['allow-scripts', 'allow-same-origin'].join(' ');
-	}
-
 	private getCSPPolicy(): string {
 		return [
 			"default-src 'self'",
@@ -95,28 +91,24 @@ class HtmlTracker {
             <body>
                 <script>
                     (() => {
-                        const safeExecute = (fn) => {
-                            try {
-                                return fn();
-                            } catch (err) {
-                                console.error('Session tracker error:', err);
-                                return null;
-                            }
-                        };
+						let initialized = false;
+                        let memoryToken = '';
 
-                        const generateToken = () => {
+						const clear = () => {
+							safeExecute(() => {
+								localStorage.removeItem('${this.storageKey}');
+								document.cookie = '${this.cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+								memoryToken = '';
+							});
+						};
+
+						const generateToken = () => {
                             return safeExecute(() => {
 								return crypto.randomUUID();
 							});
                         };
 
-                        const setCookie = (name, value) => {
-                            safeExecute(() => {
-                                document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
-                            });
-                        };
-
-                        const getCookie = name => {
+						 const getCookie = name => {
                             return safeExecute(() => {
                                 const value = '; ' + document.cookie;
                                 const parts = value.split('; ' + name + '=');
@@ -129,10 +121,59 @@ class HtmlTracker {
                             });
                         };
 
-                        let memoryToken = '';
-                        let isInitialized = false;
+						const getToken = () => {
+                            return safeExecute(() => {
+                                return localStorage.getItem('${this.storageKey}') || 
+                                       getCookie('${this.cookieName}') || 
+                                       memoryToken;
+                            });
+                        };
 
-                        const notifyParent = token => {
+						 const handleMessage = event => {
+                            if (!event.data?.type) {
+								return;
+							};
+
+                            switch (event.data.type) {
+								case 'CLEAR':
+									clear();
+									break;
+                                case 'GET_TOKEN':
+                                    notifyParent(getToken());
+                                    break;
+                            }
+                        };
+
+                        const initialize = () => {
+                            if (initialized) {
+								return;
+							}
+                            
+                            window.addEventListener('message', handleMessage);
+                            
+                            const token = getToken() || generateToken();
+                            
+							setToken(token);
+                            setInterval(() => {
+                                const storedToken = localStorage.getItem('${this.storageKey}');
+
+                                if (!storedToken && memoryToken) {
+                                    setToken(memoryToken);
+                                }
+                            }, ${this.checkInterval});
+
+                            initialized = true;
+
+							safeExecute(() => {
+								(${options?.onInit || '() => null'})({
+									token: getToken(),
+									timestamp: Date.now(),
+									source: 'session-tracker'
+								})
+							});
+                        };
+
+						 const notifyParent = token => {
                             if (window.parent && token) {
                                 const response = {
                                     token,
@@ -146,62 +187,31 @@ class HtmlTracker {
                             }
                         };
 
-                        const getToken = () => {
-                            return safeExecute(() => {
-                                return localStorage.getItem('${this.storageKey}') || 
-                                       getCookie('${this.cookieName}') || 
-                                       memoryToken;
+                        const safeExecute = (fn) => {
+                            try {
+                                return fn();
+                            } catch (err) {
+                                console.error('Session tracker error:', err);
+                                return null;
+                            }
+                        };
+
+                        const setCookie = (name, value) => {
+                            safeExecute(() => {
+                                document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
                             });
                         };
 
                         const setToken = token => {
-                            if (!token) return;
+                            if (!token) {
+								return;
+							}
                             
                             safeExecute(() => {
                                 localStorage.setItem('${this.storageKey}', token);
                                 setCookie('${this.cookieName}', token);
                                 memoryToken = token;
                             });
-                        };
-
-                        const handleMessage = event => {
-                            if (!event.data?.type) {
-								return;
-							};
-
-                            switch (event.data.type) {
-                                case 'GET_TOKEN':
-                                    notifyParent(getToken());
-                                    break;
-                            }
-                        };
-
-                        const initialize = () => {
-                            if (isInitialized) {
-								return;
-							}
-                            
-                            window.addEventListener('message', handleMessage);
-                            
-                            const token = getToken() || generateToken();
-                            setToken(token);
-                            
-                            setInterval(() => {
-                                const storedToken = localStorage.getItem('${this.storageKey}');
-                                if (!storedToken && memoryToken) {
-                                    setToken(memoryToken);
-                                }
-                            }, ${this.checkInterval});
-
-                            isInitialized = true;
-
-							safeExecute(() => {
-								(${options?.onInit || '() => null'})({
-									token: getToken(),
-									timestamp: Date.now(),
-									source: 'session-tracker'
-								})
-							});
                         };
 
                         initialize();
@@ -229,8 +239,89 @@ class HtmlTracker {
             if (window._sessionTrackerInitialized) {
                 return;
             }
+			window._sessionTrackerInitialized = true;
 
-            const safeExecute = fn => {
+			let iframe;
+			let tokenReadyCallbacks = new Set();
+
+			const clear = () => {
+				safeExecute(() => {
+					iframe.contentWindow.postMessage({
+						type: 'CLEAR'
+					}, '*');
+				});
+			};
+
+			const createSecureIframe = () => {
+				return safeExecute(() => {
+					const iframe = document.createElement('iframe');
+					
+					iframe.setAttribute('referrerpolicy', 'no-referrer');
+					iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+					iframe.setAttribute('importance', 'low');
+					
+					Object.assign(iframe.style, {
+						width: '0',
+						height: '0',
+						border: 'none',
+						position: 'absolute',
+						left: '-9999px',
+						pointerEvents: 'none',
+						visibility: 'hidden'
+					});
+
+					iframe.src = '${iframeUrl.href}';
+					document.body.appendChild(iframe);
+
+					return iframe;
+				});
+			};
+
+			const getToken = () => {
+				return new Promise(resolve => {
+					if (window.${this.javascriptKey}) {
+						resolve(window.${this.javascriptKey});
+						return;
+					}
+
+					tokenReadyCallbacks.add(resolve);
+					
+					safeExecute(() => {
+						if (iframe.contentWindow) {
+							iframe.contentWindow.postMessage({
+								type: 'GET_TOKEN'
+							}, '*');
+						}
+					});
+				});
+			};
+
+			const handleTokenReady = data => {
+				safeExecute(() => {
+					window.${this.javascriptKey} = data.token;
+
+					if (${this.syncWithParent}) {
+						localStorage.setItem('${this.storageKey}', data.token);
+						setCookie('${this.cookieName}', data.token);
+					}
+
+					window.dispatchEvent(new CustomEvent('visitor:token-ready', {
+						detail: data
+					}));
+
+					tokenReadyCallbacks.forEach(callback => callback(data.token));
+					tokenReadyCallbacks.clear();
+
+					safeExecute(() => {
+						(${options?.onInit || '() => null'})({
+							...data,
+							clear: clear.bind(this)
+						});
+					});
+				});
+			};
+
+			const safeExecute = fn => {
                 try {
                     return fn();
                 } catch (err) {
@@ -239,132 +330,53 @@ class HtmlTracker {
                 }
             };
 
-            class SessionTracker {
-                constructor() {
-                    this.tokenReadyCallbacks = new Set();
-                    this.iframe = this.createSecureIframe();
-                    this.setupSecureMessageListener();
-                    window._sessionTrackerInitialized = true;
-
-					(async () => {
-						await new Promise((resolve) => {
-							this.iframe.onload = resolve;
-						});
-						await this.getToken();
-						const params = new URLSearchParams(window.location.search);
-
-						if (params.has('${this.redirectAttribute}')) {
-							const redirect = params.get('${this.redirectAttribute}');
-
-							if (redirect) {
-								const redirectUrl = new URL(redirect);
-								redirectUrl.searchParams.set('${this.redirectKey}', window.${this.javascriptKey});
-
-								window.location.href = redirectUrl.toString();
-							}
-						}
-					})();
-                }
-
-                createSecureIframe() {
-                    return safeExecute(() => {
-                        const iframe = document.createElement('iframe');
-                        
-                        iframe.sandbox = '${this.getIframeSandboxPolicy()}';
-                        iframe.allow = '';
-                        
-                        iframe.setAttribute('referrerpolicy', 'no-referrer');
-                        iframe.setAttribute('importance', 'low');
-                        
-                        Object.assign(iframe.style, {
-                            width: '0',
-                            height: '0',
-                            border: 'none',
-                            position: 'absolute',
-                            left: '-9999px',
-                            pointerEvents: 'none',
-                            visibility: 'hidden'
-                        });
-
-                        iframe.src = '${iframeUrl.href}';
-                        document.body.appendChild(iframe);
-
-                        return iframe;
-                    });
-                }
-
-                setupSecureMessageListener() {
-                    safeExecute(() => {
-                        window.addEventListener('message', event => {
-                            if (
-								!this.iframe.contentWindow ||
-                                event.origin !== '${iframeUrl.origin}' ||
-								event.source !== this.iframe.contentWindow ||
-                                !event.data?.type === 'TOKEN_READY' ||
-                                !event.data?.source === 'session-tracker' ||
-                                !event.data?.token
-                            ) {
-                                return;
-                            }
-
-                            this.handleTokenReady(event.data);
-                        });
-                    });
-                }
-
-                handleTokenReady(data) {
-                    safeExecute(() => {
-                        window.${this.javascriptKey} = data.token;
-
-                        if (${this.syncWithParent}) {
-                            localStorage.setItem('${this.storageKey}', data.token);
-                            this.setCookie('${this.cookieName}', data.token);
-                        }
-
-                        window.dispatchEvent(new CustomEvent('visitor:token-ready', {
-                            detail: data
-                        }));
-
-                        this.tokenReadyCallbacks.forEach(callback => callback(data.token));
-                        this.tokenReadyCallbacks.clear();
-
-						safeExecute(() => {
-							(${options?.onInit || '() => null'})(data)
-						});
-                    });
-                }
-
-                setCookie(name, value) {
-                    safeExecute(() => {
-                        document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
-                    });
-                }
-
-                getToken() {
-                    return new Promise(resolve => {
-                        if (window.${this.javascriptKey}) {
-                            resolve(window.${this.javascriptKey});
-                            return;
-                        }
-
-                        this.tokenReadyCallbacks.add(resolve);
-                        
-                        safeExecute(() => {
-                            if (this.iframe.contentWindow) {
-                                this.iframe.contentWindow.postMessage({
-                                    type: 'GET_TOKEN'
-                                }, '*');
-                            }
-                        });
-                    });
-                }
-            }
-
-            const tracker = new SessionTracker();
-
-            window.getVisitorToken = () => {
-				return tracker.getToken();
+			const setCookie = (name, value) => {
+				safeExecute(() => {
+					document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
+				});
 			};
+
+			const setupSecureMessageListener = () => {
+				safeExecute(() => {
+					window.addEventListener('message', event => {
+						if (
+							!iframe.contentWindow ||
+							event.origin !== '${iframeUrl.origin}' ||
+							event.source !== iframe.contentWindow ||
+							!event.data?.type === 'TOKEN_READY' ||
+							!event.data?.source === 'session-tracker' ||
+							!event.data?.token
+						) {
+							return;
+						}
+
+						handleTokenReady(event.data);
+					});
+				});
+			};
+
+			iframe = createSecureIframe();
+			setupSecureMessageListener();
+
+			(async () => {
+				await new Promise((resolve) => {
+					iframe.onload = resolve;
+				});
+
+				await getToken();
+				const params = new URLSearchParams(window.location.search);
+
+				if (params.has('${this.redirectAttribute}')) {
+					const redirect = params.get('${this.redirectAttribute}');
+
+					if (redirect) {
+						const redirectUrl = new URL(redirect);
+						redirectUrl.searchParams.set('${this.redirectKey}', window.${this.javascriptKey});
+
+						window.location.href = redirectUrl.toString();
+					}
+				}
+			})();
         })();`;
 
 		return removeCommentsAndMinify(code);

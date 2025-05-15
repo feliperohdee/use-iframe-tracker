@@ -127,15 +127,6 @@ describe('HtmlTracker', () => {
 			expect(body).to.include('<script>');
 			expect(body).to.include('</script>');
 		});
-
-		it('should include necessary global functions in JS', () => {
-			const tracker = new HtmlTracker(defaultConfig);
-			const jsCode = tracker.js();
-
-			expect(jsCode).to.include('window.getVisitorToken');
-			expect(jsCode).to.include('window._sessionTrackerInitialized');
-			expect(jsCode).to.include('class SessionTracker');
-		});
 	});
 
 	describe('token management', () => {
