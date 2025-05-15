@@ -9,7 +9,7 @@ describe('HtmlTracker', () => {
 	describe('initialization', () => {
 		it('should initialize with default values', () => {
 			const tracker = new HtmlTracker(defaultConfig);
-			const { body, headers } = tracker.iframe();
+			const { body } = tracker.iframe();
 			const jsCode = tracker.js();
 
 			expect(body).to.be.a('string');

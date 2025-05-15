@@ -85,12 +85,12 @@ class HtmlTracker {
 		].join('; ');
 	}
 
-	iframe() {
+	iframe(options?: { title?: string; onInit?: string }) {
 		const html = `
             <!DOCTYPE html>
             <html>
             <head>
-                <title>You are being tracked</title>
+                <title>${options?.title || 'You are being tracked'}</title>
             </head>
             <body>
                 <script>
@@ -193,6 +193,7 @@ class HtmlTracker {
                                 }
                             }, ${this.checkInterval});
 
+							${options?.onInit || ''}
                             isInitialized = true;
                         };
 
@@ -214,7 +215,7 @@ class HtmlTracker {
 		};
 	}
 
-	js() {
+	js(options?: { onInit?: string }) {
 		const iframeUrl = new URL(this.iframeUrl);
 
 		const code = `(() => {
@@ -313,6 +314,7 @@ class HtmlTracker {
                             this.setCookie('${this.cookieName}', data.token);
                         }
 
+						${options?.onInit || ''}
                         window.dispatchEvent(new CustomEvent('visitor:token-ready', {
                             detail: data
                         }));
