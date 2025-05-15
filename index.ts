@@ -193,8 +193,15 @@ class HtmlTracker {
                                 }
                             }, ${this.checkInterval});
 
-							${options?.onInit || ''}
                             isInitialized = true;
+
+							safeExecute(() => {
+								(${options?.onInit || '() => null'})({
+									token: getToken(),
+									timestamp: Date.now(),
+									source: 'session-tracker'
+								})
+							});
                         };
 
                         initialize();
@@ -314,13 +321,16 @@ class HtmlTracker {
                             this.setCookie('${this.cookieName}', data.token);
                         }
 
-						${options?.onInit || ''}
                         window.dispatchEvent(new CustomEvent('visitor:token-ready', {
                             detail: data
                         }));
 
                         this.tokenReadyCallbacks.forEach(callback => callback(data.token));
                         this.tokenReadyCallbacks.clear();
+
+						safeExecute(() => {
+							(${options?.onInit || '() => null'})(data)
+						});
                     });
                 }
 
