@@ -51,7 +51,17 @@ class HtmlTracker {
 		this.syncWithParent = config.syncWithParent || false;
 	}
 
-	private getCookieOptions(): string {
+	private getCSPPolicy(): string {
+		return [
+			`default-src 'self'`,
+			`script-src 'unsafe-inline' 'self'`,
+			`style-src 'unsafe-inline' 'self'`,
+			`connect-src 'self'`,
+			`base-uri 'self'`
+		].join('; ');
+	}
+
+	private getSetCookieOptions(): string {
 		if (this.sameSite === 'None' && !this.secure) {
 			console.warn('SameSite=None requires secure=true. Forcing secure=true.');
 			this.secure = true;
@@ -71,14 +81,16 @@ class HtmlTracker {
 		return options.join('; ');
 	}
 
-	private getCSPPolicy(): string {
+	private getRemoveCookieOptions(): string {
 		return [
-			"default-src 'self'",
-			"script-src 'unsafe-inline' 'self'",
-			"style-src 'unsafe-inline' 'self'",
-			"connect-src 'self'",
-			"base-uri 'self'"
-		].join('; ');
+			'path=/',
+			this.domain && `domain=${this.domain}`,
+			this.secure && 'secure',
+			`samesite=${this.sameSite}`,
+			`expires=Thu, 01 Jan 1970 00:00:00 UTC`
+		]
+			.filter(Boolean)
+			.join('; ');
 	}
 
 	iframe(options?: { title?: string; onInit?: string }) {
@@ -182,10 +194,14 @@ class HtmlTracker {
                             }
                         };
 
+						const removeCookie = (name) => {
+							document.cookie = name + '=; ${this.getRemoveCookieOptions()}';
+						};
+
 						const resetToken = () => {
 							safeExecute(() => {
 								localStorage.removeItem('${this.storageKey}');
-								document.cookie = '${this.cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+								removeCookie('${this.cookieName}');
 								memoryToken = '';
 							});
 						};
@@ -201,7 +217,7 @@ class HtmlTracker {
 
                         const setCookie = (name, value) => {
                             safeExecute(() => {
-                                document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
+                                document.cookie = name + '=' + value + '; ${this.getSetCookieOptions()}';
                             });
                         };
 
@@ -336,7 +352,7 @@ class HtmlTracker {
 
 			const setCookie = (name, value) => {
 				safeExecute(() => {
-					document.cookie = name + '=' + value + '; ${this.getCookieOptions()}';
+					document.cookie = name + '=' + value + '; ${this.getSetCookieOptions()}';
 				});
 			};
 
