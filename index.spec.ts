@@ -27,11 +27,9 @@ describe('HtmlTracker', () => {
 				domain: 'example.com',
 				iframeUrl: 'https://example.com',
 				javascriptKey: 'CUSTOM_TOKEN',
-				redirectKey: 'CUSTOM_REDIRECT',
 				sameSite: 'Strict' as const,
 				secure: false,
-				storageKey: 'custom_storage',
-				redirectAttribute: 'custom_redirect'
+				storageKey: 'custom_storage'
 			};
 
 			const tracker = new HtmlTracker(config);
@@ -42,7 +40,6 @@ describe('HtmlTracker', () => {
 			expect(body).to.include('custom_cookie');
 
 			expect(jsCode).to.include('custom_storage');
-			expect(jsCode).to.include('CUSTOM_REDIRECT');
 			expect(jsCode).to.include('CUSTOM_TOKEN');
 			expect(jsCode).to.include('domain=example.com');
 			expect(jsCode).to.include('samesite=Strict');

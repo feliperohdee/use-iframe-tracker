@@ -18,8 +18,6 @@ class HtmlTracker {
 	private domain: string;
 	private iframeUrl: string;
 	private javascriptKey: string;
-	private redirectAttribute: string;
-	private redirectKey: string;
 	private sameSite: 'Strict' | 'Lax' | 'None';
 	private secure: boolean;
 	private storageKey: string;
@@ -31,8 +29,6 @@ class HtmlTracker {
 		domain?: string;
 		iframeUrl: string;
 		javascriptKey?: string;
-		redirectAttribute?: string;
-		redirectKey?: string;
 		sameSite?: 'Strict' | 'Lax' | 'None';
 		secure?: boolean;
 		storageKey?: string;
@@ -43,8 +39,6 @@ class HtmlTracker {
 		this.cookieName = config.cookieName || 'visitor_token';
 		this.domain = config.domain || '';
 		this.javascriptKey = config.javascriptKey || 'VISITOR_TOKEN';
-		this.redirectAttribute = config.redirectAttribute || 'redirect';
-		this.redirectKey = config.redirectKey || 'visitor_token';
 		this.sameSite = config.sameSite || 'None';
 		this.secure = config.secure ?? true;
 		this.storageKey = config.storageKey || 'visitor_token';
@@ -393,18 +387,6 @@ class HtmlTracker {
 				});
 
 				await getToken();
-				const params = new URLSearchParams(window.location.search);
-
-				if (params.has('${this.redirectAttribute}')) {
-					const redirect = params.get('${this.redirectAttribute}');
-
-					if (redirect) {
-						const redirectUrl = new URL(redirect);
-						redirectUrl.searchParams.set('${this.redirectKey}', window.${this.javascriptKey});
-
-						window.location.href = redirectUrl.toString();
-					}
-				}
 			})();
         })();`;
 

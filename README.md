@@ -18,7 +18,6 @@
 - ⚡ Automatic token generation using crypto.randomUUID()
 - 🔄 Fallback mechanisms for token storage
 - 🎭 Parent-frame synchronization options
-- 🔀 Automatic redirect handling after token generation
 
 ## 📦 Installation
 
@@ -53,8 +52,6 @@ type TrackerConfig = {
 	domain?: string; // Cookie domain
 	iframeUrl: string; // Base URL for the tracker iframe
 	javascriptKey?: string; // Key for the javascript variable (default: 'visitor_token')
-	redirectAttribute?: string; // URL parameter for redirect (default: 'redirect')
-	redirectKey?: string; // Key for the redirect parameter (default: 'visitor_token')
 	sameSite?: 'Strict' | 'Lax' | 'None'; // SameSite cookie policy (default: 'None')
 	secure?: boolean; // Use secure cookies (default: true)
 	storageKey?: string; // localStorage key (default: 'visitor_token')
@@ -222,45 +219,6 @@ window.getVisitorToken().then(token => {
 	// Secure: true if required
 	console.log('Current token:', token);
 });
-```
-
-## 🔄 Redirect Handling
-
-The tracker supports automatic redirects after token generation:
-
-```typescript
-// Server setup with custom redirect parameter
-const tracker = new HtmlTracker({
-	iframeUrl: 'https://your-domain.com/iframe',
-	redirectAttribute: 'destination' // Custom redirect parameter (default: 'redirect')
-});
-
-// Usage in URLs
-// https://your-domain.com/landing?redirect=https://final-destination.com
-// After token generation, user will be redirected to https://final-destination.com
-```
-
-### Redirect Flow Examples
-
-```typescript
-// Basic redirect after token generation
-const tracker = new HtmlTracker({
-	iframeUrl: 'https://your-domain.com/iframe'
-});
-
-// URL: https://your-domain.com/page?redirect=https://destination.com
-// The tracker will:
-// 1. Generate/retrieve the visitor token
-// 2. Automatically redirect to https://destination.com
-
-// Custom redirect parameter
-const customTracker = new HtmlTracker({
-	iframeUrl: 'https://your-domain.com/iframe',
-	redirectAttribute: 'goto'
-});
-
-// URL: https://your-domain.com/page?goto=https://destination.com
-// Uses 'goto' instead of default 'redirect' parameter
 ```
 
 ### Setup Your HTML
